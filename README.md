@@ -11,6 +11,8 @@ A lightweight CLI tool for comparing two prompts against test cases using YAML c
 - **Progress Bars**: Visual feedback during testing
 - **Template Variables**: Dynamic prompt interpolation
 - **Unified CLI**: Single `duel` command for all operations
+- **AI-Powered Analysis**: Intelligent insights about prompt performance
+- **Prompt Management**: Save, list, and delete prompts
 
 ## Quick Start
 
@@ -81,6 +83,15 @@ duel save classify "Classify this text as positive or negative: {input}"
 
 #### `duel list`
 List all saved prompts.
+
+#### `duel delete <name>`
+Delete a saved prompt by name.
+
+**Examples:**
+```bash
+duel delete summarize
+duel delete old_prompt
+```
 
 #### `duel test <prompt1> <prompt2> [options]`
 Test two prompts against inputs. Prompts can be saved names or inline templates.
@@ -202,6 +213,26 @@ duel test "Write a story about {input}" "Create a narrative about {input}" \
   --metric judge
 ```
 
+## AI-Powered Analysis
+
+Every test run includes intelligent analysis of your results:
+
+### What the AI Analyzes:
+- **Prompt differences** - How your prompts approach the task differently
+- **Performance insights** - Analysis of wins, token usage, and response quality
+- **Recommendations** - Actionable suggestions for improving your prompts
+
+### Example Analysis Output:
+```
+==================================================
+🧠 AI ANALYSIS
+==================================================
+The key difference between Prompt A and Prompt B lies in their approach...
+[Intelligent analysis of prompt differences, performance, and recommendations]
+```
+
+The AI analysis helps you understand not just which prompt won, but why, and how to improve your prompt engineering skills.
+
 ## Configuration Format
 
 Create a YAML file with your experiment configuration:
@@ -296,6 +327,9 @@ duel save classify "Classify as positive/negative: {input}"
 
 # List saved prompts
 duel list
+
+# Delete a prompt
+duel delete old_prompt
 
 # Use saved prompts in tests
 duel test summarize translate -i "Hello world"
