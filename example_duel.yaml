@@ -1,0 +1,14 @@
+experiment: "Summarization Duel"
+model: "gpt-4o-mini"
+prompts:
+  A: "Summarize the following text in one sentence: {input}"
+  B: "TL;DR: {input}"
+cases:
+  - input: "The quick brown fox jumps over the lazy dog. This pangram contains every letter of the English alphabet at least once."
+    expected: "A quick brown fox jumps over a lazy dog, demonstrating all English alphabet letters."
+  - input: "Machine learning is a subset of artificial intelligence that enables computers to learn and make decisions without being explicitly programmed for every task."
+    expected: "Machine learning enables computers to learn and make decisions without explicit programming."
+  - input: "The weather today is sunny with a high of 75 degrees Fahrenheit and a low of 60 degrees Fahrenheit."
+    expected: "Today's weather is sunny with temperatures ranging from 60-75°F."
+metric: "exact"
+system_prompt: "You are a helpful assistant that provides concise and accurate summaries." 

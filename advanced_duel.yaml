@@ -1,0 +1,18 @@
+experiment: "Creative Writing Duel"
+model: "gpt-4o-mini"
+judge_model: "gpt-4o"
+prompts:
+  A: "Write a {vars.genre} story about {input} in exactly {vars.word_count} words."
+  B: "Create a {vars.genre} narrative featuring {input}. Keep it to {vars.word_count} words maximum."
+cases:
+  - input: "a robot learning to paint"
+    expected: "creative story about robot painting"
+  - input: "a time traveler in ancient Rome"
+    expected: "adventure story about time travel"
+  - input: "a magical library that comes alive at night"
+    expected: "fantasy story about living library"
+metric: "judge"
+system_prompt: "You are a creative writing assistant. Be imaginative and engaging."
+vars:
+  genre: "science fiction"
+  word_count: "100" 
