@@ -58,6 +58,19 @@ class DuelManager:
         prompts = self._load_prompts()
         return prompts.get(name)
     
+    def delete_prompt(self, name):
+        """Delete a saved prompt by name."""
+        prompts = self._load_prompts()
+        if name not in prompts:
+            print(f"❌ Prompt '{name}' not found.")
+            print("💡 Use 'duel list' to see available prompts")
+            return False
+        
+        deleted_prompt = prompts.pop(name)
+        self._save_prompts(prompts)
+        print(f"🗑️  Deleted prompt '{name}': {deleted_prompt[:50]}...")
+        return True
+    
     def test_prompts(self, prompt1, prompt2, inputs, 
                     expected=None, model="gpt-4o-mini", 
                     metric="exact", save_csv=False):
@@ -145,6 +158,7 @@ Examples:
   duel save summarize "Summarize: {input}"     # Save a prompt
   duel save tldr "TL;DR: {input}"              # Save another prompt
   duel list                                    # List saved prompts
+  duel delete summarize                        # Delete a prompt
   duel test summarize tldr -i "Hello world"    # Test two prompts
   duel run config.yaml                         # Run from config file
         """
@@ -162,6 +176,10 @@ Examples:
     
     # List command
     subparsers.add_parser('list', help='List saved prompts')
+    
+    # Delete command
+    delete_parser = subparsers.add_parser('delete', help='Delete a saved prompt')
+    delete_parser.add_argument('name', help='Name of the prompt to delete')
     
     # Test command
     test_parser = subparsers.add_parser('test', help='Test two prompts')
@@ -195,6 +213,9 @@ Examples:
         
         elif args.command == 'list':
             manager.list_prompts()
+        
+        elif args.command == 'delete':
+            manager.delete_prompt(args.name)
         
         elif args.command == 'test':
             manager.test_prompts(
