@@ -16,16 +16,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-print('DEBUG: list:', list)
-print('DEBUG: dict:', dict)
-print('DEBUG: tuple:', tuple)
-
 @dataclass
 class TestCase:
     input: str
     expected: typing.Optional[str] = None
-
-print('DEBUG: TestCase after definition:', TestCase)
 
 @dataclass
 class DuelResult:
@@ -140,7 +134,6 @@ Your judgment:"""
     def run_duel(self) -> typing.List[DuelResult]:
         """Run the prompt duel and return results."""
         results = []
-        print('DEBUG: TestCase in run_duel:', TestCase)
         cases = [TestCase(**case) for case in self.config['cases']]
         
         print(f"🏆 Running: {self.config['experiment']}")
@@ -220,6 +213,62 @@ Your judgment:"""
             print("🏆 Overall winner: Prompt B")
         else:
             print("🤝 Overall result: Tie")
+        
+        # Add AI-powered analysis
+        self._analyze_results(results)
+    
+    def _analyze_results(self, results: typing.List[DuelResult]):
+        """Analyze results using AI to provide insights."""
+        if not results:
+            return
+        
+        # Prepare analysis data
+        prompt_a = self.config['prompts']['A']
+        prompt_b = self.config['prompts']['B']
+        
+        a_wins = sum(1 for r in results if r.winner == 'A')
+        b_wins = sum(1 for r in results if r.winner == 'B')
+        ties = sum(1 for r in results if r.winner == 'Tie')
+        
+        total_tokens_a = sum(r.prompt_a_tokens for r in results)
+        total_tokens_b = sum(r.prompt_b_tokens for r in results)
+        
+        # Create sample responses for analysis
+        sample_responses = []
+        for i, result in enumerate(results[:3]):  # Analyze first 3 cases
+            sample_responses.append(f"Case {i+1}:\nA: {result.prompt_a_response[:200]}...\nB: {result.prompt_b_response[:200]}...")
+        
+        analysis_prompt = f"""
+You are an expert prompt engineer analyzing the results of a prompt A/B test. Provide insights about the performance of two prompts.
+
+PROMPT A: "{prompt_a}"
+PROMPT B: "{prompt_b}"
+
+RESULTS:
+- A wins: {a_wins}
+- B wins: {b_wins} 
+- Ties: {ties}
+- Total tokens - A: {total_tokens_a}, B: {total_tokens_b}
+
+SAMPLE RESPONSES:
+{chr(10).join(sample_responses)}
+
+Please provide a concise analysis (2-3 paragraphs) covering:
+1. Key differences in prompt approaches
+2. Performance insights (wins, token usage, response quality)
+3. Recommendations for improvement
+
+Focus on actionable insights that would help improve prompt engineering.
+"""
+        
+        try:
+            analysis_response, _, _ = self._call_model(analysis_prompt)
+            print("\n" + "="*50)
+            print("🧠 AI ANALYSIS")
+            print("="*50)
+            print(analysis_response)
+        except Exception as e:
+            print(f"\n⚠️  Could not generate AI analysis: {e}")
     
     def save_csv(self, results: typing.List[DuelResult]):
         """Save results to CSV file."""
