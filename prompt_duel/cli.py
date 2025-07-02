@@ -71,6 +71,74 @@ class DuelManager:
         print(f"🗑️  Deleted prompt '{name}': {deleted_prompt[:50]}...")
         return True
     
+    def diff_prompts(self, prompt1, prompt2):
+        """Show differences between two prompts."""
+        # Resolve prompt names if they're saved prompts
+        prompt_a = self.get_prompt(prompt1) or prompt1
+        prompt_b = self.get_prompt(prompt2) or prompt2
+        
+        print(f"🔍 Comparing prompts:")
+        print(f"  A: {prompt1}")
+        print(f"  B: {prompt2}")
+        print()
+        
+        # Simple character-by-character diff with highlighting
+        self._show_diff(prompt_a, prompt_b)
+    
+    def _show_diff(self, text_a, text_b):
+        """Show a simple diff between two texts."""
+        import difflib
+        
+        # Split into lines for better diff visualization
+        lines_a = text_a.splitlines()
+        lines_b = text_b.splitlines()
+        
+        # Generate diff
+        diff = difflib.unified_diff(
+            lines_a, lines_b,
+            fromfile='Prompt A',
+            tofile='Prompt B',
+            lineterm=''
+        )
+        
+        # Print diff with color coding
+        diff_lines = list(diff)
+        
+        if not diff_lines:
+            print("✅ Prompts are identical!")
+            return
+        
+        print("📝 Differences:")
+        print("-" * 50)
+        
+        for line in diff_lines:
+            if line.startswith('---') or line.startswith('+++'):
+                # Skip diff headers
+                continue
+            elif line.startswith('@@'):
+                # Show context
+                print(f"  {line}")
+            elif line.startswith('+'):
+                # Added line (green)
+                print(f"  \033[92m{line}\033[0m")  # Green
+            elif line.startswith('-'):
+                # Removed line (red)
+                print(f"  \033[91m{line}\033[0m")  # Red
+            else:
+                # Context line
+                print(f"  {line}")
+        
+        print("-" * 50)
+        
+        # Summary
+        added_lines = sum(1 for line in diff_lines if line.startswith('+') and not line.startswith('+++'))
+        removed_lines = sum(1 for line in diff_lines if line.startswith('-') and not line.startswith('---'))
+        
+        if added_lines > 0 or removed_lines > 0:
+            print(f"📊 Summary: {removed_lines} lines removed, {added_lines} lines added")
+        else:
+            print("📊 Summary: No differences found")
+    
     def test_prompts(self, prompt1, prompt2, inputs, 
                     expected=None, model="gpt-4o-mini", 
                     metric="exact", save_csv=False):
@@ -159,6 +227,7 @@ Examples:
   duel save tldr "TL;DR: {input}"              # Save another prompt
   duel list                                    # List saved prompts
   duel delete summarize                        # Delete a prompt
+  duel diff summarize tldr                     # Show differences between prompts
   duel test summarize tldr -i "Hello world"    # Test two prompts
   duel run config.yaml                         # Run from config file
         """
@@ -180,6 +249,11 @@ Examples:
     # Delete command
     delete_parser = subparsers.add_parser('delete', help='Delete a saved prompt')
     delete_parser.add_argument('name', help='Name of the prompt to delete')
+    
+    # Diff command
+    diff_parser = subparsers.add_parser('diff', help='Show differences between two prompts')
+    diff_parser.add_argument('prompt1', help='First prompt (name or template)')
+    diff_parser.add_argument('prompt2', help='Second prompt (name or template)')
     
     # Test command
     test_parser = subparsers.add_parser('test', help='Test two prompts')
@@ -216,6 +290,9 @@ Examples:
         
         elif args.command == 'delete':
             manager.delete_prompt(args.name)
+        
+        elif args.command == 'diff':
+            manager.diff_prompts(args.prompt1, args.prompt2)
         
         elif args.command == 'test':
             manager.test_prompts(
