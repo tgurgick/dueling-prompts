@@ -15,7 +15,7 @@ from datetime import datetime
 from dataclasses import asdict
 
 from .store import DuelStore
-from .engine import PromptDuel
+from .engine import PromptDuel, MultiPromptDuel
 from .metrics import metric_registry, LLMJudgeMetric
 from openai import OpenAI
 
@@ -254,6 +254,17 @@ Examples:
         test_parser.add_argument('response1', help='First response')
         test_parser.add_argument('response2', help='Second response')
         test_parser.add_argument('--expected', help='Expected response')
+        
+        # metric models
+        models_parser = metric_subparsers.add_parser('models', help='List available models for metrics')
+        models_parser.add_argument('--metric', help='Show models for specific metric')
+        
+        # metric configure
+        config_parser = metric_subparsers.add_parser('configure', help='Configure metric parameters')
+        config_parser.add_argument('name', help='Metric name')
+        config_parser.add_argument('--model', help='Model name to use')
+        config_parser.add_argument('--temperature', type=float, help='Temperature for LLM metrics')
+        config_parser.add_argument('--judge-model', help='Judge model for LLM metrics')
     
     def _add_experiment_parser(self, subparsers):
         """Add experiment subcommands."""
@@ -401,20 +412,55 @@ Examples:
             print(f"🧪 Testing metric '{args.name}'...")
             # TODO: Implement metric testing
             print("Metric testing not yet implemented")
+            
+        elif args.metric_command == 'models':
+            self._show_available_models(args.metric)
+            
+        elif args.metric_command == 'configure':
+            self._configure_metric(args.name, args.model, args.temperature, args.judge_model)
     
     def _handle_experiment(self, args):
         """Handle experiment subcommands."""
         if args.experiment_command == 'run':
-            # For now, use the existing engine
             try:
-                duel = PromptDuel(args.config)
-                results = duel.run_duel()
-                duel.print_results(results)
+                # Check if this is a multi-prompt experiment
+                with open(args.config, 'r') as f:
+                    config = yaml.safe_load(f)
                 
-                # Save results to store
-                experiment_id = f"exp_{int(datetime.now().timestamp())}"
-                self.store.save_experiment_results(experiment_id, [asdict(r) for r in results])
-                print(f"💾 Results saved to experiment {experiment_id}")
+                # Determine which engine to use based on config
+                if len(config.get('prompts', {})) > 2 or 'metrics' in config:
+                    # Use multi-prompt engine
+                    print("🚀 Using multi-prompt engine...")
+                    duel = MultiPromptDuel(args.config)
+                    results = duel.run_duel()
+                    duel.print_results(results)
+                    
+                    # Save results to store (convert to compatible format)
+                    experiment_id = f"exp_{int(datetime.now().timestamp())}"
+                    # For now, save basic info - could enhance store to handle multi-prompt results
+                    basic_results = []
+                    for result in results:
+                        for prompt_name, response in result.responses.items():
+                            basic_results.append({
+                                'case_num': result.case_num,
+                                'prompt_name': prompt_name,
+                                'response': response,
+                                'input_tokens': result.input_tokens[prompt_name],
+                                'output_tokens': result.output_tokens[prompt_name]
+                            })
+                    self.store.save_experiment_results(experiment_id, basic_results)
+                    print(f"💾 Results saved to experiment {experiment_id}")
+                else:
+                    # Use legacy engine for backward compatibility
+                    print("🔄 Using legacy engine for 2-prompt comparison...")
+                    duel = PromptDuel(args.config)
+                    results = duel.run_duel()
+                    duel.print_results(results)
+                    
+                    # Save results to store
+                    experiment_id = f"exp_{int(datetime.now().timestamp())}"
+                    self.store.save_experiment_results(experiment_id, [asdict(r) for r in results])
+                    print(f"💾 Results saved to experiment {experiment_id}")
                 
             except Exception as e:
                 print(f"❌ Error running experiment: {e}")
@@ -533,6 +579,89 @@ Examples:
                 duel.print_results(results)
             except Exception as e:
                 print(f"❌ Error running experiment: {e}")
+    
+    def _show_available_models(self, metric_name: Optional[str] = None):
+        """Show available models for metrics."""
+        if metric_name:
+            # Show models for specific metric
+            if metric_name in ['relevance', 'semantic_similarity']:
+                print(f"🤖 Available models for {metric_name}:")
+                print("  Sentence Transformers models:")
+                print("    all-MiniLM-L6-v2 (default) - Fast, good quality")
+                print("    all-mpnet-base-v2 - Higher quality, slower")
+                print("    paraphrase-multilingual-MiniLM-L12-v2 - Multilingual")
+                print("    distiluse-base-multilingual-cased-v2 - Multilingual")
+                print("    all-distilroberta-v1 - Good balance")
+                print("    paraphrase-albert-onnx - Fast inference")
+                print()
+                print("💡 To use a different model:")
+                print(f"  duel metric configure {metric_name} --model all-mpnet-base-v2")
+            elif metric_name in ['safety_judge', 'llm_judge']:
+                print(f"🤖 Available models for {metric_name}:")
+                print("  OpenAI models:")
+                print("    gpt-4o (default) - Best quality")
+                print("    gpt-4o-mini - Faster, cheaper")
+                print("    gpt-4-turbo - Previous generation")
+                print("    gpt-3.5-turbo - Fastest, cheapest")
+                print()
+                print("💡 To use a different model:")
+                print(f"  duel metric configure {metric_name} --judge-model gpt-4o-mini")
+            else:
+                print(f"❌ No configurable models for metric '{metric_name}'")
+        else:
+            # Show all available models
+            print("🤖 Available models by metric type:")
+            print()
+            print("📊 Similarity metrics (relevance, semantic_similarity):")
+            print("  Sentence Transformers models:")
+            print("    all-MiniLM-L6-v2 (default) - Fast, good quality")
+            print("    all-mpnet-base-v2 - Higher quality, slower")
+            print("    paraphrase-multilingual-MiniLM-L12-v2 - Multilingual")
+            print("    distiluse-base-multilingual-cased-v2 - Multilingual")
+            print("    all-distilroberta-v1 - Good balance")
+            print("    paraphrase-albert-onnx - Fast inference")
+            print()
+            print("🧠 LLM Judge metrics (safety_judge, llm_judge):")
+            print("  OpenAI models:")
+            print("    gpt-4o (default) - Best quality")
+            print("    gpt-4o-mini - Faster, cheaper")
+            print("    gpt-4-turbo - Previous generation")
+            print("    gpt-3.5-turbo - Fastest, cheapest")
+            print()
+            print("💡 To configure a specific metric:")
+            print("  duel metric configure <metric_name> --model <model_name>")
+            print("  duel metric configure <metric_name> --judge-model <model_name>")
+    
+    def _configure_metric(self, metric_name: str, model: Optional[str] = None, 
+                         temperature: Optional[float] = None, judge_model: Optional[str] = None):
+        """Configure metric parameters."""
+        metric_file = self.store.metrics_dir / f"{metric_name}.yaml"
+        if not metric_file.exists():
+            print(f"❌ Metric '{metric_name}' not found")
+            return
+        
+        # Load current configuration
+        with open(metric_file, 'r') as f:
+            data = yaml.safe_load(f)
+        
+        # Update parameters
+        if model and metric_name in ['relevance', 'semantic_similarity']:
+            data['parameters']['model_name'] = model
+            print(f"✅ Updated {metric_name} to use model: {model}")
+        
+        if judge_model and metric_name in ['safety_judge', 'llm_judge']:
+            data['parameters']['judge_model'] = judge_model
+            print(f"✅ Updated {metric_name} to use judge model: {judge_model}")
+        
+        if temperature is not None and metric_name in ['safety_judge', 'llm_judge']:
+            data['parameters']['temperature'] = temperature
+            print(f"✅ Updated {metric_name} temperature to: {temperature}")
+        
+        # Save updated configuration
+        with open(metric_file, 'w') as f:
+            yaml.dump(data, f, default_flow_style=False)
+        
+        print(f"💾 Configuration saved for metric '{metric_name}'")
 
 
 def main():

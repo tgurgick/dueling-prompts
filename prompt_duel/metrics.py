@@ -50,7 +50,7 @@ class ContainsMetric(Metric):
 class RelevanceMetric(Metric):
     """Relevance scoring using sentence transformers."""
     
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2", **kwargs):
         try:
             from sentence_transformers import SentenceTransformer
             self.model = SentenceTransformer(model_name)
@@ -81,7 +81,7 @@ class RelevanceMetric(Metric):
 class SemanticSimilarityMetric(Metric):
     """Semantic similarity using cosine similarity of embeddings."""
     
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2", **kwargs):
         try:
             from sentence_transformers import SentenceTransformer
             self.model = SentenceTransformer(model_name)

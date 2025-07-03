@@ -8,5 +8,5 @@ cases:
     expected: "A quick brown fox jumps over a lazy dog, demonstrating all English alphabet letters."
   - input: "Machine learning is a subset of artificial intelligence that enables computers to learn and make decisions without being explicitly programmed for every task."
     expected: "Machine learning enables computers to learn and make decisions without explicit programming."
-metric: "exact"
+metric: "semantic_similarity"
 system_prompt: "You are a helpful assistant that provides concise and accurate summaries." 
