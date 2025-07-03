@@ -26,8 +26,10 @@ class DuelResult:
     case_num: int
     prompt_a_response: str
     prompt_b_response: str
-    prompt_a_tokens: int
-    prompt_b_tokens: int
+    prompt_a_input_tokens: int
+    prompt_a_output_tokens: int
+    prompt_b_input_tokens: int
+    prompt_b_output_tokens: int
     winner: str  # 'A', 'B', or 'Tie'
     score_a: float
     score_b: float
@@ -176,8 +178,10 @@ Your judgment:"""
                 case_num=i + 1,
                 prompt_a_response=response_a,
                 prompt_b_response=response_b,
-                prompt_a_tokens=tokens_a_prompt + tokens_a_completion,
-                prompt_b_tokens=tokens_b_prompt + tokens_b_completion,
+                prompt_a_input_tokens=tokens_a_prompt,
+                prompt_a_output_tokens=tokens_a_completion,
+                prompt_b_input_tokens=tokens_b_prompt,
+                prompt_b_output_tokens=tokens_b_completion,
                 winner=winner,
                 score_a=score_a,
                 score_b=score_b
@@ -196,16 +200,27 @@ Your judgment:"""
         b_wins = sum(1 for r in results if r.winner == 'B')
         ties = sum(1 for r in results if r.winner == 'Tie')
         
-        total_tokens_a = sum(r.prompt_a_tokens for r in results)
-        total_tokens_b = sum(r.prompt_b_tokens for r in results)
+        total_input_tokens_a = sum(r.prompt_a_input_tokens for r in results)
+        total_output_tokens_a = sum(r.prompt_a_output_tokens for r in results)
+        total_input_tokens_b = sum(r.prompt_b_input_tokens for r in results)
+        total_output_tokens_b = sum(r.prompt_b_output_tokens for r in results)
         
+        # Show case-by-case results
         for result in results:
             emoji = "✅" if result.winner != 'Tie' else "🤝"
-            print(f"Case {result.case_num}: {emoji} Prompt {result.winner} wins")
+            print(f"\nCase {result.case_num}: {emoji} Prompt {result.winner} wins")
+            print(f"  Score A: {result.score_a:.3f} | Score B: {result.score_b:.3f}")
+            print(f"  Tokens A: {result.prompt_a_input_tokens} input + {result.prompt_a_output_tokens} output = {result.prompt_a_input_tokens + result.prompt_a_output_tokens} total")
+            print(f"  Tokens B: {result.prompt_b_input_tokens} input + {result.prompt_b_output_tokens} output = {result.prompt_b_input_tokens + result.prompt_b_output_tokens} total")
+            
+            # Show truncated responses
+            print(f"  Response A: {result.prompt_a_response[:150]}{'...' if len(result.prompt_a_response) > 150 else ''}")
+            print(f"  Response B: {result.prompt_b_response[:150]}{'...' if len(result.prompt_b_response) > 150 else ''}")
         
         print("\n" + "-"*30)
         print(f"A wins: {a_wins} | B wins: {b_wins} | Ties: {ties}")
-        print(f"Total tokens - A: {total_tokens_a}, B: {total_tokens_b}")
+        print(f"Total tokens - A: {total_input_tokens_a} input + {total_output_tokens_a} output = {total_input_tokens_a + total_output_tokens_a}")
+        print(f"Total tokens - B: {total_input_tokens_b} input + {total_output_tokens_b} output = {total_input_tokens_b + total_output_tokens_b}")
         
         if a_wins > b_wins:
             print("🏆 Overall winner: Prompt A")
@@ -230,8 +245,8 @@ Your judgment:"""
         b_wins = sum(1 for r in results if r.winner == 'B')
         ties = sum(1 for r in results if r.winner == 'Tie')
         
-        total_tokens_a = sum(r.prompt_a_tokens for r in results)
-        total_tokens_b = sum(r.prompt_b_tokens for r in results)
+        total_tokens_a = sum(r.prompt_a_input_tokens + r.prompt_a_output_tokens for r in results)
+        total_tokens_b = sum(r.prompt_b_input_tokens + r.prompt_b_output_tokens for r in results)
         
         # Create sample responses for analysis
         sample_responses = []
@@ -276,7 +291,7 @@ Focus on actionable insights that would help improve prompt engineering.
         filename = f"results_{timestamp}.csv"
         
         with open(filename, 'w', newline='') as csvfile:
-            fieldnames = ['case', 'winner', 'score_a', 'score_b', 'tokens_a', 'tokens_b', 'response_a', 'response_b']
+            fieldnames = ['case', 'winner', 'score_a', 'score_b', 'tokens_a_input', 'tokens_a_output', 'tokens_b_input', 'tokens_b_output', 'response_a', 'response_b']
             writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
             
             writer.writeheader()
@@ -286,8 +301,10 @@ Focus on actionable insights that would help improve prompt engineering.
                     'winner': result.winner,
                     'score_a': result.score_a,
                     'score_b': result.score_b,
-                    'tokens_a': result.prompt_a_tokens,
-                    'tokens_b': result.prompt_b_tokens,
+                    'tokens_a_input': result.prompt_a_input_tokens,
+                    'tokens_a_output': result.prompt_a_output_tokens,
+                    'tokens_b_input': result.prompt_b_input_tokens,
+                    'tokens_b_output': result.prompt_b_output_tokens,
                     'response_a': result.prompt_a_response,
                     'response_b': result.prompt_b_response
                 })

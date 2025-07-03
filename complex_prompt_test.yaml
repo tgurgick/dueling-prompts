@@ -1,0 +1,15 @@
+experiment: "Complex Prompt Style Comparison"
+model: "gpt-4o-mini"
+judge_model: "gpt-4o"
+prompts:
+  A: "You are an expert technical writer. Carefully read the following passage and produce a summary that captures the main argument, supporting evidence, and any notable counterpoints. Your summary should be structured in three concise paragraphs: the first for the main idea, the second for supporting details, and the third for any limitations or open questions. Use clear, formal language and avoid direct quotations. Passage: {input}"
+  B: "Imagine you are explaining the following text to a group of high school students with no prior knowledge of the topic. Write a summary that is engaging, uses analogies or simple examples, and highlights why the topic matters in everyday life. Limit your summary to no more than 120 words and end with a thought-provoking question to encourage further discussion. Text: {input}"
+cases:
+  - input: "Artificial intelligence has rapidly evolved from a theoretical concept to a practical technology that impacts nearly every industry. Machine learning algorithms can now process vast amounts of data to identify patterns, make predictions, and automate complex tasks. However, this rapid advancement raises important questions about job displacement, privacy concerns, and the ethical implications of AI decision-making. While some experts predict massive job losses, others argue that AI will create new opportunities and augment human capabilities rather than replace them entirely."
+    expected: "comprehensive summary of AI evolution and implications"
+  - input: "Climate change represents one of the most pressing challenges of our time, with rising global temperatures, extreme weather events, and sea level rise affecting communities worldwide. Scientific consensus indicates that human activities, particularly the burning of fossil fuels, are the primary drivers of these changes. Despite this evidence, political and economic factors continue to slow meaningful action. The transition to renewable energy sources, while costly in the short term, offers long-term benefits for both the environment and economic stability."
+    expected: "clear explanation of climate change causes and solutions"
+  - input: "The rise of social media has fundamentally transformed how people communicate, consume information, and form opinions. Platforms like Facebook, Twitter, and TikTok have created new opportunities for connection and expression, but they've also introduced challenges like misinformation, echo chambers, and mental health impacts. The algorithms that power these platforms are designed to maximize engagement, often prioritizing sensational content over factual accuracy. This has led to calls for greater regulation and transparency in how these platforms operate."
+    expected: "balanced analysis of social media's impact on society"
+metric: "judge"
+system_prompt: "You are a helpful assistant that provides thoughtful and well-structured responses." 

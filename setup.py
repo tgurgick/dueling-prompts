@@ -8,16 +8,16 @@ with open("requirements.txt", "r", encoding="utf-8") as fh:
 
 setup(
     name="prompt-duel",
-    version="0.1.0",
+    version="1.0.0",
     author="Your Name",
     author_email="your.email@example.com",
-    description="A CLI tool for comparing prompts using YAML configuration",
+    description="A modular CLI tool for A/B testing prompts with OpenAI models",
     long_description=long_description,
     long_description_content_type="text/markdown",
     url="https://github.com/yourusername/dueling-prompts",
     packages=find_packages(),
     classifiers=[
-        "Development Status :: 3 - Alpha",
+        "Development Status :: 4 - Beta",
         "Intended Audience :: Developers",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
@@ -32,7 +32,7 @@ setup(
     install_requires=requirements,
     entry_points={
         "console_scripts": [
-            "duel=prompt_duel.cli:main",
+            "duel=prompt_duel.cli_new:main",
         ],
     },
     include_package_data=True,
