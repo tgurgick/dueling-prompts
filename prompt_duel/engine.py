@@ -13,6 +13,8 @@ from dataclasses import dataclass
 from tqdm import tqdm
 from openai import OpenAI
 from dotenv import load_dotenv
+from .store import DuelStore
+from .metrics import SafetyJudgeMetric, LLMJudgeMetric, ExactMatchMetric, ContainsMetric, RelevanceMetric, SemanticSimilarityMetric
 
 load_dotenv()
 
@@ -39,6 +41,7 @@ class PromptDuel:
     def __init__(self, config_path: str):
         self.config = self._load_config(config_path)
         self.client = OpenAI()
+        self.store = DuelStore()
         
     def _load_config(self, config_path: str) -> typing.Dict[str, typing.Any]:
         """Load and validate YAML configuration."""
@@ -55,6 +58,49 @@ class PromptDuel:
             raise ValueError("Exactly two prompts (A and B) are required")
         
         return config
+    
+    def _create_metric(self, metric_name: str) -> typing.Any:
+        """Create a metric instance with prompts from YAML if available."""
+        # Get metric configuration from store
+        metric_config = self.store.get_metric(metric_name)
+        if not metric_config:
+            # Fallback to default metrics
+            if metric_name == 'exact_match':
+                return ExactMatchMetric()
+            elif metric_name == 'contains_check':
+                return ContainsMetric()
+            elif metric_name == 'relevance':
+                return RelevanceMetric()
+            elif metric_name == 'semantic_similarity':
+                return SemanticSimilarityMetric()
+            else:
+                raise ValueError(f"Unknown metric: {metric_name}")
+        
+        # Create metric with prompts from YAML
+        if metric_name == 'safety_judge':
+            return SafetyJudgeMetric(
+                client=self.client,
+                model=metric_config.parameters.get('judge_model', 'gpt-4o'),
+                temperature=metric_config.parameters.get('temperature', 0.0),
+                prompts=metric_config.prompts
+            )
+        elif metric_name == 'llm_judge':
+            return LLMJudgeMetric(
+                client=self.client,
+                model=metric_config.parameters.get('judge_model', 'gpt-4o'),
+                temperature=metric_config.parameters.get('temperature', 0.0),
+                prompts=metric_config.prompts
+            )
+        elif metric_name == 'exact_match':
+            return ExactMatchMetric()
+        elif metric_name == 'contains_check':
+            return ContainsMetric()
+        elif metric_name == 'relevance':
+            return RelevanceMetric()
+        elif metric_name == 'semantic_similarity':
+            return SemanticSimilarityMetric()
+        else:
+            raise ValueError(f"Unknown metric: {metric_name}")
     
     def _interpolate_template(self, template: str, case: TestCase, vars_dict: typing.Dict[str, typing.Any]) -> str:
         """Replace template variables with actual values."""
@@ -156,21 +202,17 @@ Your judgment:"""
                 prompt_b, self.config.get('system_prompt')
             )
             
-            # Score responses
-            metric = self.config.get('metric', 'exact')
+            # Score responses using modular metrics
+            metric_name = self.config.get('metric', 'exact_match')
+            metric = self._create_metric(metric_name)
             
-            if metric == 'exact' and case.expected:
-                score_a = self._score_exact(response_a, case.expected)
-                score_b = self._score_exact(response_b, case.expected)
-            elif metric == 'contains' and case.expected:
-                score_a = self._score_contains(response_a, case.expected)
-                score_b = self._score_contains(response_b, case.expected)
-            elif metric == 'judge' and case.expected:
-                score_a, score_b = self._score_judge(response_a, response_b, case.expected)
+            if hasattr(metric, 'score_comparative'):
+                # Use comparative scoring if available
+                score_a, score_b = metric.score_comparative(response_a, response_b, case.expected or "")
             else:
-                # Default to exact match if no expected value or unknown metric
-                score_a = 0.0
-                score_b = 0.0
+                # Fallback to individual scoring
+                score_a = metric.score(response_a, case.expected or "")
+                score_b = metric.score(response_b, case.expected or "")
             
             winner = self._determine_winner(score_a, score_b)
             

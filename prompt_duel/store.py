@@ -40,6 +40,7 @@ class Metric:
     description: str
     implementation: str
     parameters: Dict[str, Any]
+    prompts: Optional[Dict[str, str]] = None
 
 
 @dataclass
