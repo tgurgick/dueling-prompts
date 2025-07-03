@@ -10,5 +10,5 @@ cases:
     expected: "Machine learning enables computers to learn and make decisions without explicit programming."
   - input: "The weather today is sunny with a high of 75 degrees Fahrenheit and a low of 60 degrees Fahrenheit."
     expected: "Today's weather is sunny with temperatures ranging from 60-75°F."
-metric: "exact"
+metric: "exact_match"
 system_prompt: "You are a helpful assistant that provides concise and accurate summaries." 

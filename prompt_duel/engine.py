@@ -284,12 +284,13 @@ Your judgment:"""
             print("🤝 Overall result: Tie")
         
         # Add AI-powered analysis
-        self._analyze_results(results)
+        analysis = self._analyze_results(results)
+        return analysis
     
-    def _analyze_results(self, results: typing.List[DuelResult]):
-        """Analyze results using AI to provide insights."""
+    def _analyze_results(self, results: typing.List[DuelResult]) -> str:
+        """Analyze results using AI to provide insights and return the analysis text."""
         if not results:
-            return
+            return ""
         
         # Prepare analysis data
         prompt_a = self.config['prompts']['A']
@@ -336,8 +337,11 @@ Focus on actionable insights that would help improve prompt engineering.
             print("🧠 AI ANALYSIS")
             print("="*50)
             print(analysis_response)
+            return analysis_response
         except Exception as e:
-            print(f"\n⚠️  Could not generate AI analysis: {e}")
+            error_msg = f"Could not generate AI analysis: {e}"
+            print(f"\n⚠️  {error_msg}")
+            return error_msg
     
     def save_csv(self, results: typing.List[DuelResult]):
         """Save results to CSV file."""
@@ -633,16 +637,17 @@ class MultiPromptDuel:
             print(f"  Overall Result: Tie between {', '.join(overall_winners)}")
         
         # AI Analysis
-        self._analyze_multi_results(results)
+        analysis = self._analyze_multi_results(results)
+        return analysis
     
-    def _analyze_multi_results(self, results: typing.List[MultiPromptResult]):
-        """Generate AI analysis for multi-prompt results."""
+    def _analyze_multi_results(self, results: typing.List[MultiPromptResult]) -> str:
+        """Generate AI analysis for multi-prompt results and return the analysis text."""
         print("\n" + "="*50)
         print("🧠 AI ANALYSIS")
         print("="*50)
         
         if not results:
-            return
+            return ""
         
         prompt_names = list(results[0].responses.keys())
         metrics = list(results[0].scores.keys())
@@ -717,6 +722,7 @@ class MultiPromptDuel:
         analysis += "- Analyze specific use cases where each prompt excels\n"
         
         print(analysis)
+        return analysis
     
     def save_csv(self, results: typing.List[MultiPromptResult], filename: typing.Optional[str] = None):
         """Save multi-prompt results to CSV."""

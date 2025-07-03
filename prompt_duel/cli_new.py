@@ -283,6 +283,10 @@ Examples:
         view_parser = experiment_subparsers.add_parser('view', help='View experiment details')
         view_parser.add_argument('experiment_id', help='Experiment ID')
         
+        # experiment analysis
+        analysis_parser = experiment_subparsers.add_parser('analysis', help='View experiment analysis')
+        analysis_parser.add_argument('experiment_id', help='Experiment ID')
+        
         # experiment template
         template_parser = experiment_subparsers.add_parser('template', help='Create experiment template')
         template_parser.add_argument('name', help='Template name')
@@ -433,7 +437,7 @@ Examples:
                     print("🚀 Using multi-prompt engine...")
                     duel = MultiPromptDuel(args.config)
                     results = duel.run_duel()
-                    duel.print_results(results)
+                    analysis = duel.print_results(results)
                     
                     # Save results to store (convert to compatible format)
                     experiment_id = f"exp_{int(datetime.now().timestamp())}"
@@ -448,18 +452,34 @@ Examples:
                                 'input_tokens': result.input_tokens[prompt_name],
                                 'output_tokens': result.output_tokens[prompt_name]
                             })
-                    self.store.save_experiment_results(experiment_id, basic_results)
+                    self.store.save_experiment_results(experiment_id, basic_results, config)
+                    
+                    # Save analysis separately
+                    if analysis:
+                        analysis_file = self.store.experiments_dir / experiment_id / "analysis.txt"
+                        with open(analysis_file, 'w') as f:
+                            f.write(analysis)
+                        print(f"📝 Analysis saved to experiment {experiment_id}")
+                    
                     print(f"💾 Results saved to experiment {experiment_id}")
                 else:
                     # Use legacy engine for backward compatibility
                     print("🔄 Using legacy engine for 2-prompt comparison...")
                     duel = PromptDuel(args.config)
                     results = duel.run_duel()
-                    duel.print_results(results)
+                    analysis = duel.print_results(results)
                     
                     # Save results to store
                     experiment_id = f"exp_{int(datetime.now().timestamp())}"
-                    self.store.save_experiment_results(experiment_id, [asdict(r) for r in results])
+                    self.store.save_experiment_results(experiment_id, [asdict(r) for r in results], config)
+                    
+                    # Save analysis separately
+                    if analysis:
+                        analysis_file = self.store.experiments_dir / experiment_id / "analysis.txt"
+                        with open(analysis_file, 'w') as f:
+                            f.write(analysis)
+                        print(f"📝 Analysis saved to experiment {experiment_id}")
+                    
                     print(f"💾 Results saved to experiment {experiment_id}")
                 
             except Exception as e:
@@ -491,18 +511,63 @@ Examples:
             exp_id = args.experiment_id
             exp_dir = self.store.experiments_dir / exp_id
             results_file = exp_dir / "results.json"
+            analysis_file = exp_dir / "analysis.txt"
+            
             if not results_file.exists():
                 print(f"❌ No results found for experiment '{exp_id}'")
                 return
+            
             print(f"🧪 Results for experiment {exp_id}:")
+            print("=" * 50)
+            
+            # Show results
             with open(results_file) as f:
                 results = json.load(f)
+            
+            # Count wins
+            a_wins = sum(1 for r in results if r.get('winner') == 'A')
+            b_wins = sum(1 for r in results if r.get('winner') == 'B')
+            ties = sum(1 for r in results if r.get('winner') == 'Tie')
+            
+            print(f"📊 Summary: A wins: {a_wins} | B wins: {b_wins} | Ties: {ties}")
+            print()
+            
+            # Show detailed results
             for r in results:
                 print(f"Case {r['case_num']}: Winner: {r['winner']}")
-                print(f"  Prompt A: {r['prompt_a_response']}")
-                print(f"  Prompt B: {r['prompt_b_response']}")
-                print(f"  Score A: {r['score_a']} | Score B: {r['score_b']}")
+                if 'prompt_a_response' in r:
+                    print(f"  Prompt A: {r['prompt_a_response'][:100]}...")
+                    print(f"  Prompt B: {r['prompt_b_response'][:100]}...")
+                    print(f"  Score A: {r['score_a']} | Score B: {r['score_b']}")
+                else:
+                    # Multi-prompt format
+                    for prompt_name, response in r.get('responses', {}).items():
+                        print(f"  {prompt_name}: {response[:100]}...")
                 print()
+            
+            # Show analysis if available
+            if analysis_file.exists():
+                print("🧠 AI ANALYSIS")
+                print("=" * 50)
+                with open(analysis_file, 'r') as f:
+                    analysis = f.read()
+                print(analysis)
+            else:
+                print("📝 No AI analysis available for this experiment.")
+        elif args.experiment_command == 'analysis':
+            exp_id = args.experiment_id
+            exp_dir = self.store.experiments_dir / exp_id
+            analysis_file = exp_dir / "analysis.txt"
+            
+            if not analysis_file.exists():
+                print(f"❌ No analysis found for experiment '{exp_id}'")
+                return
+            
+            print(f"🧠 AI Analysis for experiment {exp_id}:")
+            print("=" * 50)
+            with open(analysis_file, 'r') as f:
+                analysis = f.read()
+            print(analysis)
         elif args.experiment_command == 'template':
             print(f"📝 Creating template '{args.name}'...")
             # TODO: Implement template creation
