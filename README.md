@@ -6,13 +6,15 @@ A powerful CLI tool for A/B testing prompts with OpenAI models, featuring modula
 
 - **Modular Architecture**: Separate management of prompts, metrics, and experiments
 - **Prompt Versioning**: Track prompt evolution with full history and diffing
-- **Multiple Metrics**: Exact match, contains check, LLM judge, semantic similarity, relevance, and safety evaluation
-- **Multi-Prompt Experiments**: Compare more than two prompts simultaneously
-- **AI-Powered Analysis**: Automatic generation and saving of insights about prompt performance
-- **Configurable Metrics**: Customize model parameters for different scoring methods
+- **Comprehensive Metrics**: 13+ metrics including exact match, contains check, LLM judge, semantic similarity, relevance, safety evaluation, and Hugging Face NLP metrics (BLEU, ROUGE, METEOR, BERTScore, BLEURT, TER)
+- **Multi-Prompt Experiments**: Compare more than two prompts simultaneously with automatic random control prompts
+- **AI-Powered Analysis**: GPT-4o-powered insights with executive summary, metric-specific analysis, and practical recommendations
+- **Metric-Specific Thresholds**: Intelligent win detection with appropriate sensitivity for each metric type
+- **Configurable Models**: Customize model parameters for different scoring methods
 - **Experiment Management**: Run, track, and analyze prompt comparison experiments
 - **Enhanced Analytics**: Detailed token usage (input/output), response comparison, and AI-powered insights
 - **History Tracking**: Complete audit trail of prompt changes and experiment results
+- **Automatic Control Prompts**: Every experiment includes a random control prompt for baseline comparison
 
 ## 📦 Installation
 
@@ -137,6 +139,7 @@ duel experiment template <name> [--from <existing>]
 
 ## 📊 Available Metrics
 
+### Core Metrics
 - **exact_match**: Case-insensitive exact matching
 - **contains_check**: Check if expected text is contained in response
 - **llm_judge**: Use LLM to compare two responses (configurable prompts)
@@ -144,9 +147,25 @@ duel experiment template <name> [--from <existing>]
 - **semantic_similarity**: Cosine similarity of text embeddings (configurable models)
 - **safety_judge**: Safety evaluation using LLM judge (configurable prompts)
 
+### Hugging Face NLP Metrics
+- **bleu**: Bilingual Evaluation Understudy - measures n-gram overlap
+- **rouge**: Recall-Oriented Understudy for Gisting Evaluation - measures word overlap
+- **meteor**: Metric for Evaluation of Translation with Explicit ORdering
+- **bertscore**: Contextual similarity using BERT embeddings
+- **bleurt**: Combined BLEU + BERT evaluation
+- **ter**: Translation Edit Rate - measures edit distance
+
 ### Configurable Models
 - **Sentence Transformers**: `all-MiniLM-L6-v2`, `all-mpnet-base-v2`, `paraphrase-multilingual-MiniLM-L12-v2`, etc.
 - **OpenAI Models**: `gpt-4o`, `gpt-4o-mini`, `gpt-4-turbo`, `gpt-3.5-turbo`
+- **BERTScore Models**: `microsoft/deberta-xlarge-mnli`, `microsoft/deberta-large-mnli`, etc.
+
+### Metric-Specific Thresholds
+The tool uses intelligent win thresholds for each metric type:
+- **Binary Metrics** (0.001): Exact match, contains check
+- **Similarity Metrics** (0.05): Relevance, semantic similarity
+- **NLP Metrics** (0.01-0.03): BLEU, ROUGE, METEOR, BERTScore, BLEURT, TER
+- **LLM Judge Metrics** (0.1): LLM judge, safety judge
 
 ## 🔬 Experiment Configuration
 
@@ -169,7 +188,7 @@ system_prompt: "You are a helpful assistant."
 ```
 
 ### Multi-Prompt Comparison
-Compare multiple prompts with multiple metrics:
+Compare multiple prompts with multiple metrics (includes automatic random control prompt):
 
 ```yaml
 experiment: "Multi-Prompt Analysis"
@@ -183,6 +202,8 @@ metrics:
   - exact_match
   - relevance
   - llm_judge
+  - bleu
+  - rouge
 cases:
   - input: "The quick brown fox jumps over the lazy dog..."
     expected: "A quick brown fox jumps over a lazy dog..."
@@ -192,36 +213,46 @@ cases:
 
 ## 📈 Enhanced Results with AI Analysis
 
-The tool now provides detailed analysis with AI-powered insights:
+The tool now provides comprehensive analysis with GPT-4o-powered insights:
 
 ```
 Case 1: ✅ Prompt A wins
   Score A: 1.000 | Score B: 0.000
   Tokens A: 53 input + 31 output = 84 total
   Tokens B: 54 input + 29 output = 83 total
-  Response A: The sentence "The quick brown fox jumps over the lazy dog"...
-  Response B: The sentence "The quick brown fox jumps over the lazy dog"...
+  Response A: "The sentence 'The quick brown fox jumps over the lazy dog'..."
+  Response B: "The sentence 'The quick brown fox jumps over the lazy dog'..."
 
-------------------------------
-A wins: 3 | B wins: 0 | Ties: 0
-Total tokens - A: 106 input + 59 output = 165
-Total tokens - B: 108 input + 57 output = 165
-🏆 Overall winner: Prompt A
+🏆 Overall Analysis:
+  Overall Winner: Prompt A
+  Wins: A: 3 | B: 0 | Ties: 0
+  Total Tokens: A: 106 input + 59 output = 165
 
 ==================================================
 🧠 AI ANALYSIS
 ==================================================
-### Key Differences in Prompt Approaches
+### 1. Executive Summary
+**Overall Winner**: Prompt A emerged as the clear winner...
 
-The primary distinction between Prompt A and Prompt B lies in their...
+### 2. Metric-Specific Analysis
+- **Exact Match**: All prompts scored 0.000...
+- **Relevance**: Prompt A scored highest...
+- **BLEU**: Prompt A was the only one to score...
 
-### Performance Insights
+### 3. Prompt Strengths & Weaknesses
+- **Prompt A**: Strengths in relevance and semantic similarity...
+- **Prompt B**: Limited performance across metrics...
 
-Both prompts resulted in...
+### 4. Control Prompt Analysis
+The random control prompt showed moderate performance...
 
-### Recommendations for Improvement
+### 5. Practical Recommendations
+- Enhance specificity for exact match metrics...
+- Focus on contextual understanding...
 
-To enhance the effectiveness of these prompts...
+### 6. Statistical Insights
+- Notable patterns in relevance scores...
+- Outliers in BLEU metrics...
 ```
 
 ## 🔧 Configuration
@@ -304,7 +335,7 @@ duel prompt save technical "You are an expert technical writer..." --tags techni
 duel prompt save engaging "Imagine you are explaining to high school students..." --tags engaging educational
 duel prompt save concise "Provide a brief summary..." --tags concise
 
-# Run multi-prompt comparison
+# Run multi-prompt comparison with NLP metrics
 duel experiment run multi_prompt_test.yaml
 
 # View results with AI analysis
@@ -319,10 +350,20 @@ duel experiment analysis exp_1234567890
 # Test semantic similarity
 duel metric test semantic_similarity "Response A" "Response B" --expected "Expected output"
 
+# Test NLP metrics
+duel metric test bleu "Response A" "Response B" --expected "Expected output"
+duel metric test rouge "Response A" "Response B" --expected "Expected output"
+
 # Configure metrics for better performance
 duel metric configure relevance --model all-mpnet-base-v2
 duel metric configure safety_judge --judge-model gpt-4o-mini
+duel metric configure bertscore --model microsoft/deberta-large-mnli
 ```
+
+## 📚 Documentation
+
+For detailed information about all metrics, their applications, interpretation, and best practices, see:
+- **[METRICS_GUIDE.md](METRICS_GUIDE.md)** - Comprehensive guide to all available metrics
 
 ## 🤝 Contributing
 

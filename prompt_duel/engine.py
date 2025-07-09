@@ -15,6 +15,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 from .store import DuelStore
 from .metrics import SafetyJudgeMetric, LLMJudgeMetric, ExactMatchMetric, ContainsMetric, RelevanceMetric, SemanticSimilarityMetric
+from .hf_metrics import get_hf_metric, HF_METRICS
 
 load_dotenv()
 
@@ -69,6 +70,17 @@ class PromptDuel:
     
     def _create_metric(self, metric_name: str) -> typing.Any:
         """Create a metric instance with prompts from YAML if available."""
+        # Check if it's a Hugging Face metric first
+        if metric_name in HF_METRICS:
+            # Get metric configuration from store
+            metric_config = self.store.get_metric(metric_name)
+            if metric_config:
+                # Use parameters from YAML if available
+                return get_hf_metric(metric_name, **metric_config.parameters)
+            else:
+                # Use default parameters
+                return get_hf_metric(metric_name)
+        
         # Get metric configuration from store
         metric_config = self.store.get_metric(metric_name)
         if not metric_config:
@@ -370,12 +382,16 @@ Focus on actionable insights that would help improve prompt engineering.
         print(f"\n💾 Results saved to: {filename}")
 
 class MultiPromptDuel:
-    """Enhanced engine for multiple prompts and metrics."""
+    """Enhanced engine for multiple prompts and metrics.
+    Adds a global win_threshold (default 0.01) for winner logic on all metrics.
+    A prompt only wins if its score exceeds the next best by at least win_threshold; otherwise, it's a tie.
+    """
     
-    def __init__(self, config_path: str):
+    def __init__(self, config_path: str, win_threshold: float = 0.01):
         self.config = self._load_config(config_path)
         self.client = OpenAI()
         self.store = DuelStore()
+        self.win_threshold = win_threshold
     
     def _load_config(self, config_path: str) -> typing.Dict[str, typing.Any]:
         """Load and validate YAML configuration."""
@@ -395,6 +411,17 @@ class MultiPromptDuel:
     
     def _create_metric(self, metric_name: str) -> typing.Any:
         """Create a metric instance with prompts from YAML if available."""
+        # Check if it's a Hugging Face metric first
+        if metric_name in HF_METRICS:
+            # Get metric configuration from store
+            metric_config = self.store.get_metric(metric_name)
+            if metric_config:
+                # Use parameters from YAML if available
+                return get_hf_metric(metric_name, **metric_config.parameters)
+            else:
+                # Use default parameters
+                return get_hf_metric(metric_name)
+        
         # Get metric configuration from store
         metric_config = self.store.get_metric(metric_name)
         if not metric_config:
@@ -475,18 +502,55 @@ class MultiPromptDuel:
             response.usage.completion_tokens
         )
     
-    def _determine_winner(self, scores: typing.Dict[str, float]) -> str:
-        """Determine the winner based on scores."""
+    def _determine_winner(self, scores: typing.Dict[str, float], metric_name: str = None) -> str:
+        """Determine the winner based on scores and metric-specific thresholds."""
         if not scores:
             return "Tie"
         
-        max_score = max(scores.values())
-        winners = [name for name, score in scores.items() if score == max_score]
+        # Find the highest score and the next highest
+        sorted_scores = sorted(scores.items(), key=lambda x: x[1], reverse=True)
+        if len(sorted_scores) < 2:
+            return sorted_scores[0][0]
+        top_name, top_score = sorted_scores[0]
+        second_score = sorted_scores[1][1]
         
-        if len(winners) == 1:
-            return winners[0]
-        else:
+        # Use metric-specific thresholds
+        threshold = self._get_metric_threshold(metric_name)
+        
+        if abs(top_score - second_score) < threshold:
             return "Tie"
+        else:
+            return top_name
+    
+    def _get_metric_threshold(self, metric_name: str) -> float:
+        """Get metric-specific win threshold."""
+        if not metric_name:
+            return self.win_threshold
+        
+        # Metric-specific thresholds based on typical score ranges and sensitivity
+        thresholds = {
+            # Binary metrics - very strict
+            'exact_match': 0.001,
+            'contains_check': 0.001,
+            
+            # Similarity metrics - moderate sensitivity
+            'relevance': 0.05,
+            'semantic_similarity': 0.05,
+            
+            # NLP metrics - higher sensitivity due to lower typical scores
+            'bleu': 0.02,
+            'rouge': 0.01,  # Lower threshold for ROUGE due to 0.5 default scores
+            'meteor': 0.03,
+            'bertscore': 0.02,
+            'bleurt': 0.02,
+            'ter': 0.05,  # Lower is better for TER
+            
+            # LLM judge metrics - moderate sensitivity
+            'llm_judge': 0.1,
+            'safety_judge': 0.1,
+        }
+        
+        return thresholds.get(metric_name.lower(), self.win_threshold)
     
     def run_duel(self) -> typing.List[MultiPromptResult]:
         """Run the multi-prompt duel and return results."""
@@ -495,9 +559,14 @@ class MultiPromptDuel:
         prompt_names = list(self.config['prompts'].keys())
         metrics = self.config.get('metrics', ['exact_match'])
         
+        # Add automatic random control prompt if not already present
+        if 'Random' not in self.config['prompts']:
+            self.config['prompts']['Random'] = "Generate a random response about: {input}"
+            print("🎲 Added automatic random control prompt")
+        
         print(f"🏆 Running: {self.config['experiment']}")
         print(f"🤖 Model: {self.config['model']}")
-        print(f"📝 Prompts: {', '.join(prompt_names)}")
+        print(f"📝 Prompts: {', '.join(list(self.config['prompts'].keys()))}")
         print(f"📊 Metrics: {', '.join(metrics)}")
         print(f"📋 Cases: {len(cases)}")
         print()
@@ -535,7 +604,7 @@ class MultiPromptDuel:
                     metric_scores[name] = metric.score(response, case.expected or "")
                 
                 scores[metric_name] = metric_scores
-                winners[metric_name] = self._determine_winner(metric_scores)
+                winners[metric_name] = self._determine_winner(metric_scores, metric_name)
             
             result = MultiPromptResult(
                 case_num=i + 1,
@@ -641,7 +710,7 @@ class MultiPromptDuel:
         return analysis
     
     def _analyze_multi_results(self, results: typing.List[MultiPromptResult]) -> str:
-        """Generate AI analysis for multi-prompt results and return the analysis text."""
+        """Generate AI analysis for multi-prompt results using GPT-4o."""
         print("\n" + "="*50)
         print("🧠 AI ANALYSIS")
         print("="*50)
@@ -652,14 +721,16 @@ class MultiPromptDuel:
         prompt_names = list(results[0].responses.keys())
         metrics = list(results[0].scores.keys())
         
-        # Collect data for analysis
+        # Collect detailed data for analysis
         analysis_data = {
             'prompt_names': prompt_names,
             'metrics': metrics,
             'total_cases': len(results),
             'wins_by_prompt': {},
             'avg_scores_by_prompt': {},
-            'avg_scores_by_metric': {}
+            'avg_scores_by_metric': {},
+            'case_details': [],
+            'metric_insights': {}
         }
         
         # Calculate wins and scores
@@ -669,20 +740,37 @@ class MultiPromptDuel:
         
         for metric_name in metrics:
             analysis_data['avg_scores_by_metric'][metric_name] = {}
+            analysis_data['metric_insights'][metric_name] = {
+                'wins_by_prompt': {name: 0 for name in prompt_names},
+                'score_ranges': {name: [] for name in prompt_names}
+            }
             for prompt_name in prompt_names:
                 analysis_data['avg_scores_by_metric'][metric_name][prompt_name] = 0.0
         
+        # Collect detailed case data
         for result in results:
+            case_data = {
+                'case_num': result.case_num,
+                'responses': result.responses,
+                'scores': result.scores,
+                'winners': result.winners,
+                'tokens': {name: result.input_tokens.get(name, 0) + result.output_tokens.get(name, 0) 
+                          for name in prompt_names}
+            }
+            analysis_data['case_details'].append(case_data)
+            
             for metric_name in metrics:
                 winner = result.winners[metric_name]
                 if winner != "Tie":
                     analysis_data['wins_by_prompt'][winner] += 1
+                    analysis_data['metric_insights'][metric_name]['wins_by_prompt'][winner] += 1
                 
                 scores = result.scores[metric_name]
                 for prompt_name in prompt_names:
                     score = scores.get(prompt_name, 0.0)
                     analysis_data['avg_scores_by_prompt'][prompt_name] += score
                     analysis_data['avg_scores_by_metric'][metric_name][prompt_name] += score
+                    analysis_data['metric_insights'][metric_name]['score_ranges'][prompt_name].append(score)
         
         # Calculate averages
         for prompt_name in prompt_names:
@@ -692,13 +780,98 @@ class MultiPromptDuel:
             for prompt_name in prompt_names:
                 analysis_data['avg_scores_by_metric'][metric_name][prompt_name] /= len(results)
         
-        # Generate analysis text
+        # Generate detailed analysis prompt
+        analysis_prompt = f"""You are an expert prompt engineer analyzing the results of a multi-prompt evaluation experiment. 
+
+EXPERIMENT DATA:
+- Prompts tested: {', '.join(prompt_names)}
+- Metrics used: {', '.join(metrics)}
+- Number of test cases: {len(results)}
+
+DETAILED RESULTS:
+{self._format_results_for_analysis(analysis_data)}
+
+Please provide a comprehensive analysis that includes:
+
+1. **Executive Summary**: Overall winner and key findings
+2. **Metric-Specific Analysis**: What each metric tells us about prompt performance
+3. **Prompt Strengths & Weaknesses**: Detailed analysis of each prompt's performance
+4. **Control Prompt Analysis**: How the random control performed and what it tells us
+5. **Practical Recommendations**: Specific, actionable insights for prompt improvement
+6. **Statistical Insights**: Notable patterns, outliers, or interesting findings
+
+Focus on providing specific, actionable insights rather than generic advice. Analyze what the metrics are actually telling us about the prompts' effectiveness.
+"""
+        
+        try:
+            # Use GPT-4o for analysis (different from experiment model)
+            analysis_client = OpenAI()
+            messages = [
+                {"role": "system", "content": "You are an expert prompt engineer and data analyst. Provide detailed, specific analysis based on the data provided."},
+                {"role": "user", "content": analysis_prompt}
+            ]
+            
+            analysis_response = analysis_client.chat.completions.create(
+                model="gpt-4o",
+                messages=messages,
+                temperature=0.1
+            )
+            analysis_text = analysis_response.choices[0].message.content
+            print(analysis_text)
+            return analysis_text
+        except Exception as e:
+            print(f"Warning: AI analysis failed: {e}")
+            # Fallback to basic analysis
+            return self._generate_basic_analysis(analysis_data)
+    
+    def _format_results_for_analysis(self, analysis_data: dict) -> str:
+        """Format the results data for the AI analysis prompt."""
+        formatted = ""
+        
+        # Overall statistics
+        formatted += f"OVERALL STATISTICS:\n"
+        for prompt_name in analysis_data['prompt_names']:
+            wins = analysis_data['wins_by_prompt'][prompt_name]
+            avg_score = analysis_data['avg_scores_by_prompt'][prompt_name]
+            formatted += f"- {prompt_name}: {wins} wins, avg score {avg_score:.3f}\n"
+        
+        # Metric-specific results
+        formatted += f"\nMETRIC-SPECIFIC RESULTS:\n"
+        for metric_name in analysis_data['metrics']:
+            formatted += f"\n{metric_name.upper()}:\n"
+            metric_scores = analysis_data['avg_scores_by_metric'][metric_name]
+            wins = analysis_data['metric_insights'][metric_name]['wins_by_prompt']
+            for prompt_name in analysis_data['prompt_names']:
+                score = metric_scores[prompt_name]
+                win_count = wins[prompt_name]
+                formatted += f"  {prompt_name}: {score:.3f} (avg), {win_count} wins\n"
+        
+        # Case-by-case details
+        formatted += f"\nCASE-BY-CASE DETAILS:\n"
+        for case in analysis_data['case_details']:
+            formatted += f"\nCase {case['case_num']}:\n"
+            for prompt_name in analysis_data['prompt_names']:
+                response = case['responses'][prompt_name][:100] + "..." if len(case['responses'][prompt_name]) > 100 else case['responses'][prompt_name]
+                tokens = case['tokens'][prompt_name]
+                formatted += f"  {prompt_name}: {response} ({tokens} tokens)\n"
+            
+            formatted += f"  Winners by metric:\n"
+            for metric_name in analysis_data['metrics']:
+                winner = case['winners'][metric_name]
+                scores = case['scores'][metric_name]
+                score_str = ", ".join([f"{name}: {score:.3f}" for name, score in scores.items()])
+                formatted += f"    {metric_name}: {winner} wins ({score_str})\n"
+        
+        return formatted
+    
+    def _generate_basic_analysis(self, analysis_data: dict) -> str:
+        """Generate basic analysis as fallback."""
         analysis = f"""### Multi-Prompt Analysis
 
 **Experiment Overview:**
-- {len(prompt_names)} prompts tested: {', '.join(prompt_names)}
-- {len(metrics)} metrics used: {', '.join(metrics)}
-- {len(results)} test cases evaluated
+- {len(analysis_data['prompt_names'])} prompts tested: {', '.join(analysis_data['prompt_names'])}
+- {len(analysis_data['metrics'])} metrics used: {', '.join(analysis_data['metrics'])}
+- {analysis_data['total_cases']} test cases evaluated
 
 **Performance Summary:**
 """
@@ -711,7 +884,7 @@ class MultiPromptDuel:
         analysis += f"- Highest average score: {best_avg_score[0]} ({best_avg_score[1]:.3f})\n"
         
         analysis += "\n**Metric-Specific Insights:**\n"
-        for metric_name in metrics:
+        for metric_name in analysis_data['metrics']:
             metric_scores = analysis_data['avg_scores_by_metric'][metric_name]
             best_metric_prompt = max(metric_scores.items(), key=lambda x: x[1])
             analysis += f"- {metric_name}: {best_metric_prompt[0]} performs best ({best_metric_prompt[1]:.3f})\n"
@@ -721,7 +894,6 @@ class MultiPromptDuel:
         analysis += "- Test with larger datasets for more reliable conclusions\n"
         analysis += "- Analyze specific use cases where each prompt excels\n"
         
-        print(analysis)
         return analysis
     
     def save_csv(self, results: typing.List[MultiPromptResult], filename: typing.Optional[str] = None):

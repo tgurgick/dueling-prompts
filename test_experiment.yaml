@@ -1,12 +1,17 @@
-experiment: "Summarization Prompt Comparison"
-model: "gpt-4o-mini"
+experiment: "Automatic Control Test"
+model: "gpt-3.5-turbo"
 prompts:
-  A: "Summarize the following: {input}"
-  B: "Summarize in one sentence: {input}"
+  Good: "Provide a clear, accurate summary of the following text: {input}"
+  Bad: "Write something about this, but make it confusing and off-topic: {input}"
 cases:
   - input: "The quick brown fox jumps over the lazy dog. This pangram contains every letter of the English alphabet at least once."
-    expected: "A quick brown fox jumps over a lazy dog, demonstrating all English alphabet letters."
+    expected: "A sentence containing every letter of the alphabet."
   - input: "Machine learning is a subset of artificial intelligence that enables computers to learn and make decisions without being explicitly programmed for every task."
-    expected: "Machine learning enables computers to learn and make decisions without explicit programming."
-metric: "semantic_similarity"
-system_prompt: "You are a helpful assistant that provides concise and accurate summaries." 
+    expected: "Machine learning enables computers to learn without explicit programming."
+metrics:
+  - exact_match
+  - contains_check
+  - relevance
+  - semantic_similarity
+  - bleu
+  - rouge 
